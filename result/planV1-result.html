@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Java 정렬 벤치마크 결과 | for vs stream vs parallelStream</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      background: #0f1117;
+      color: #e2e8f0;
+      padding: 32px 24px;
+    }
+    h1 {
+      font-size: 1.6rem;
+      font-weight: 700;
+      margin-bottom: 6px;
+      color: #f8fafc;
+    }
+    .subtitle {
+      font-size: 0.85rem;
+      color: #64748b;
+      margin-bottom: 36px;
+    }
+    .meta {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-bottom: 40px;
+    }
+    .badge {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 8px;
+      padding: 8px 14px;
+      font-size: 0.78rem;
+      color: #94a3b8;
+    }
+    .badge span { color: #e2e8f0; font-weight: 600; }
+    .section-title {
+      font-size: 1rem;
+      font-weight: 600;
+      color: #cbd5e1;
+      margin-bottom: 16px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #1e293b;
+    }
+    .chart-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      margin-bottom: 40px;
+    }
+    .chart-grid.full { grid-template-columns: 1fr; }
+    .card {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      padding: 24px;
+    }
+    .card-title {
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 20px;
+    }
+    .chart-wrap {
+      position: relative;
+      height: 280px;
+    }
+    .chart-wrap.tall { height: 360px; }
+
+    /* Summary Table */
+    .table-wrap { overflow-x: auto; margin-bottom: 40px; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.84rem;
+    }
+    thead th {
+      background: #0f172a;
+      padding: 12px 16px;
+      text-align: right;
+      font-weight: 600;
+      color: #64748b;
+      font-size: 0.76rem;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      border-bottom: 1px solid #334155;
+    }
+    thead th:first-child { text-align: left; }
+    tbody tr { border-bottom: 1px solid #1e293b; transition: background 0.15s; }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: #263248; }
+    tbody td {
+      padding: 13px 16px;
+      text-align: right;
+      font-variant-numeric: tabular-nums;
+    }
+    tbody td:first-child { text-align: left; font-weight: 600; color: #f1f5f9; }
+    .col-for   { color: #60a5fa; }
+    .col-st    { color: #a78bfa; }
+    .col-par   { color: #34d399; }
+    .best { font-weight: 700; }
+    .winner-badge {
+      display: inline-block;
+      font-size: 0.68rem;
+      background: #064e3b;
+      color: #6ee7b7;
+      border-radius: 4px;
+      padding: 1px 5px;
+      margin-left: 4px;
+    }
+
+    /* Insight cards */
+    .insights {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 16px;
+      margin-bottom: 40px;
+    }
+    .insight {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      padding: 20px;
+    }
+    .insight-label {
+      font-size: 0.72rem;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 8px;
+    }
+    .insight-value {
+      font-size: 1.6rem;
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+    .insight-desc { font-size: 0.78rem; color: #64748b; }
+    .blue  { color: #60a5fa; }
+    .purple{ color: #a78bfa; }
+    .green { color: #34d399; }
+
+    /* Raw data section */
+    details {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    summary {
+      padding: 16px 20px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #94a3b8;
+      user-select: none;
+    }
+    summary:hover { color: #e2e8f0; }
+    .raw-table-wrap { padding: 0 20px 20px; overflow-x: auto; }
+    .raw-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.76rem;
+      font-variant-numeric: tabular-nums;
+    }
+    .raw-table th {
+      background: #0f172a;
+      padding: 8px 12px;
+      text-align: right;
+      color: #475569;
+      font-weight: 600;
+      border-bottom: 1px solid #334155;
+    }
+    .raw-table th:first-child { text-align: left; }
+    .raw-table td {
+      padding: 7px 12px;
+      text-align: right;
+      border-bottom: 1px solid #1e293b;
+      color: #94a3b8;
+    }
+    .raw-table td:first-child { text-align: left; color: #64748b; }
+    .raw-table tr:last-child td { border-bottom: none; }
+
+    footer {
+      margin-top: 48px;
+      font-size: 0.74rem;
+      color: #334155;
+      text-align: center;
+    }
+
+    @media (max-width: 768px) {
+      .chart-grid { grid-template-columns: 1fr; }
+      .insights   { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<h1>Java 정렬 벤치마크</h1>
+<p class="subtitle">for 루프 vs stream vs parallelStream — 데이터 크기별 성능 비교</p>
+
+<div class="meta">
+  <div class="badge">실행 환경 <span>Java 21 (HotSpot JVM)</span></div>
+  <div class="badge">JVM 옵션 <span>-server -Xms2g -Xmx2g</span></div>
+  <div class="badge">워밍업 <span>10,000개 × 5회</span></div>
+  <div class="badge">측정 <span>각 크기 × 10회 평균</span></div>
+  <div class="badge">총 실행 횟수 <span>18회</span></div>
+  <div class="badge">단위 <span>마이크로초 (μs)</span></div>
+</div>
+
+<!-- Insight Cards -->
+<p class="section-title">주요 관찰</p>
+<div class="insights">
+  <div class="insight">
+    <div class="insight-label">소규모 (100개) 최고 성능</div>
+    <div class="insight-value blue">for 루프</div>
+    <div class="insight-desc">~8.4 μs — parallelStream 대비 <strong>22배</strong> 빠름</div>
+  </div>
+  <div class="insight">
+    <div class="insight-label">대규모 (100,000개) 최고 성능</div>
+    <div class="insight-value green">parallelStream</div>
+    <div class="insight-desc">~5,222 μs — for 루프 대비 <strong>약 2배</strong> 빠름</div>
+  </div>
+  <div class="insight">
+    <div class="insight-label">역전 구간</div>
+    <div class="insight-value purple">10,000개</div>
+    <div class="insight-desc">parallelStream이 stream을 추월하기 시작</div>
+  </div>
+</div>
+
+<!-- Charts -->
+<p class="section-title">크기별 평균 실행 시간 (18회 평균)</p>
+<div class="chart-grid">
+  <div class="card">
+    <div class="card-title">소규모 — 100 / 1,000개 (μs)</div>
+    <div class="chart-wrap">
+      <canvas id="chartSmall"></canvas>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-title">대규모 — 10,000 / 100,000개 (μs)</div>
+    <div class="chart-wrap">
+      <canvas id="chartLarge"></canvas>
+    </div>
+  </div>
+</div>
+
+<div class="chart-grid full">
+  <div class="card">
+    <div class="card-title">전체 크기별 추세 — 로그 스케일 (μs)</div>
+    <div class="chart-wrap tall">
+      <canvas id="chartTrend"></canvas>
+    </div>
+  </div>
+</div>
+
+<!-- Summary Table -->
+<p class="section-title">평균값 요약표 (18회 평균, μs)</p>
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>데이터 크기</th>
+        <th class="col-for">for 루프</th>
+        <th class="col-st">stream</th>
+        <th class="col-par">parallelStream</th>
+        <th>최저</th>
+        <th>비고</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>100</td>
+        <td class="col-for best">8.44 <span class="winner-badge">최저</span></td>
+        <td class="col-st">11.98</td>
+        <td class="col-par">188.07</td>
+        <td>for 루프</td>
+        <td>스레드 오버헤드 극심</td>
+      </tr>
+      <tr>
+        <td>1,000</td>
+        <td class="col-for best">89.46 <span class="winner-badge">최저</span></td>
+        <td class="col-st">99.71</td>
+        <td class="col-par">250.65</td>
+        <td>for 루프</td>
+        <td>parallel 여전히 느림</td>
+      </tr>
+      <tr>
+        <td>10,000</td>
+        <td class="col-for best">886.48 <span class="winner-badge">최저</span></td>
+        <td class="col-st">1,210.28</td>
+        <td class="col-par">965.77</td>
+        <td>for 루프</td>
+        <td>parallel이 stream 역전</td>
+      </tr>
+      <tr>
+        <td>100,000</td>
+        <td class="col-for">10,224.51</td>
+        <td class="col-st">10,747.62</td>
+        <td class="col-par best">5,221.64 <span class="winner-badge">최저</span></td>
+        <td>parallelStream</td>
+        <td>병렬 처리 이점 극대화</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- Raw Data -->
+<details>
+  <summary>▶ 원시 데이터 (18회 전체 실행 결과)</summary>
+  <div class="raw-table-wrap">
+    <table class="raw-table">
+      <thead>
+        <tr>
+          <th>실행#</th>
+          <th>크기</th>
+          <th>for 루프 (μs)</th>
+          <th>stream (μs)</th>
+          <th>parallelStream (μs)</th>
+        </tr>
+      </thead>
+      <tbody id="rawBody"></tbody>
+    </table>
+  </div>
+</details>
+
+<footer>Java 정렬 벤치마크 · planV1 · 워밍업 포함 · 재현 seed: 42+i</footer>
+
+<script>
+const RAW = [
+  // [run, size, for, stream, parallel]
+  [1,  100,     9.10,   13.92,   180.18],
+  [1,  1000,   84.35,   97.47,   225.65],
+  [1,  10000,  963.00, 1189.49, 1106.15],
+  [1,  100000,10010.07,10760.27, 5248.35],
+  [2,  100,     8.78,   12.84,   226.25],
+  [2,  1000,  102.35,   90.46,   224.01],
+  [2,  10000,  870.26, 1126.12,  879.17],
+  [2,  100000, 9792.71,10680.21, 5241.06],
+  [3,  100,     7.97,   12.23,   188.13],
+  [3,  1000,   83.48,   92.85,   237.92],
+  [3,  10000,  925.99, 1205.27, 1112.06],
+  [3,  100000,10103.07,10786.36, 7040.08],
+  [4,  100,     7.53,   10.12,   219.62],
+  [4,  1000,   85.43,   79.35,   219.40],
+  [4,  10000,  988.20, 1028.20, 1030.52],
+  [4,  100000, 9942.14,10703.81, 5806.35],
+  [5,  100,     7.02,   10.93,   187.65],
+  [5,  1000,   95.57,   91.07,   227.67],
+  [5,  10000,  807.75, 1041.38,  938.58],
+  [5,  100000,10504.65,10883.43, 5263.65],
+  [6,  100,    10.40,   12.56,   201.63],
+  [6,  1000,   93.92,  105.50,   256.57],
+  [6,  10000,  850.87, 1253.91,  942.25],
+  [6,  100000,10188.23,10886.81, 4847.53],
+  [7,  100,     7.66,   11.20,   183.26],
+  [7,  1000,   94.23,  103.88,   263.06],
+  [7,  10000,  862.57, 1268.76, 1004.73],
+  [7,  100000,10220.09,10728.74, 4611.57],
+  [8,  100,     8.83,   10.85,   202.47],
+  [8,  1000,   85.02,  104.56,   272.22],
+  [8,  10000,  845.85, 1206.25,  892.47],
+  [8,  100000,10673.11,10767.58, 5177.42],
+  [9,  100,     8.10,   14.92,   198.16],
+  [9,  1000,   93.32,  106.36,   318.79],
+  [9,  10000,  979.39, 1287.30,  991.77],
+  [9,  100000,10183.74,10538.14, 5361.52],
+  [10, 100,    10.00,   10.27,   165.27],
+  [10, 1000,   92.58,  102.81,   279.28],
+  [10, 10000,  830.35, 1248.69, 1019.25],
+  [10, 100000,10289.59,10540.72, 4692.83],
+  [11, 100,     9.92,   11.87,   158.07],
+  [11, 1000,   93.85,  103.43,   256.98],
+  [11, 10000,  785.60, 1270.55,  990.44],
+  [11, 100000,10197.77,10712.58, 5644.74],
+  [12, 100,     8.35,   12.74,   189.76],
+  [12, 1000,   88.41,   96.03,   257.07],
+  [12, 10000,  779.05, 1262.72,  950.74],
+  [12, 100000,10316.78,11054.54, 4977.19],
+  [13, 100,     7.49,   11.81,   174.56],
+  [13, 1000,   85.30,   94.71,   267.77],
+  [13, 10000,  938.25, 1259.25,  978.75],
+  [13, 100000,10031.78,10684.68, 4515.51],
+  [14, 100,     7.78,   10.81,   181.19],
+  [14, 1000,   86.27,  102.66,   219.69],
+  [14, 10000,  956.14, 1321.34,  876.35],
+  [14, 100000,10336.31,10581.20, 4768.04],
+  [15, 100,     8.03,   12.18,   173.24],
+  [15, 1000,   91.53,  101.09,   242.21],
+  [15, 10000,  952.60, 1258.75,  903.27],
+  [15, 100000,10218.15,10790.87, 4578.57],
+  [16, 100,     9.30,   13.83,   197.92],
+  [16, 1000,   94.77,  135.41,   255.38],
+  [16, 10000,  877.86, 1246.33,  852.68],
+  [16, 100000,10268.73,10867.14, 5280.33],
+  [17, 100,     6.75,   11.29,   178.29],
+  [17, 1000,   79.26,   95.82,   243.18],
+  [17, 10000,  900.42, 1195.10, 1056.10],
+  [17, 100000,10402.60,10607.18, 5244.83],
+  [18, 100,     8.83,   11.28,   179.59],
+  [18, 1000,   80.61,   91.27,   244.90],
+  [18, 10000,  842.45, 1115.60,  858.55],
+  [18, 100000,10360.74,10882.90, 5690.01],
+];
+
+// --- 평균 계산 ---
+const SIZES = [100, 1000, 10000, 100000];
+function avg(size, col) {
+  const rows = RAW.filter(r => r[1] === size);
+  return rows.reduce((s, r) => s + r[col], 0) / rows.length;
+}
+const avgs = SIZES.map(s => ({
+  size: s,
+  for:  avg(s, 2),
+  st:   avg(s, 3),
+  par:  avg(s, 4),
+}));
+
+// --- Raw table 채우기 ---
+const tbody = document.getElementById('rawBody');
+RAW.forEach(r => {
+  const tr = document.createElement('tr');
+  tr.innerHTML = `
+    <td>#${r[0]}</td>
+    <td>${r[1].toLocaleString()}</td>
+    <td>${r[2].toFixed(2)}</td>
+    <td>${r[3].toFixed(2)}</td>
+    <td>${r[4].toFixed(2)}</td>`;
+  tbody.appendChild(tr);
+});
+
+// --- Chart 공통 옵션 ---
+const BASE_FONT = { family: "'Segoe UI', system-ui, sans-serif", size: 12 };
+Chart.defaults.color = '#64748b';
+Chart.defaults.font  = BASE_FONT;
+
+const COLORS = {
+  for:  { bg: 'rgba(96,165,250,0.75)',  border: '#60a5fa' },
+  st:   { bg: 'rgba(167,139,250,0.75)', border: '#a78bfa' },
+  par:  { bg: 'rgba(52,211,153,0.75)',  border: '#34d399' },
+};
+
+function gridOpts(unit = '') {
+  return {
+    plugins: {
+      legend: { labels: { color: '#94a3b8', boxWidth: 14, padding: 16 } },
+      tooltip: {
+        backgroundColor: '#0f172a',
+        borderColor: '#334155',
+        borderWidth: 1,
+        callbacks: {
+          label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y.toFixed(2)} μs`
+        }
+      }
+    },
+    scales: {
+      x: { grid: { color: '#1e293b' }, ticks: { color: '#64748b' } },
+      y: {
+        grid: { color: '#1e293b' },
+        ticks: {
+          color: '#64748b',
+          callback: v => v.toLocaleString() + (unit ? ' ' + unit : '')
+        }
+      }
+    },
+    responsive: true,
+    maintainAspectRatio: false,
+  };
+}
+
+// --- 소규모 차트 (100 / 1,000) ---
+new Chart(document.getElementById('chartSmall'), {
+  type: 'bar',
+  data: {
+    labels: ['100개', '1,000개'],
+    datasets: [
+      { label: 'for 루프', data: [avgs[0].for,  avgs[1].for],  backgroundColor: COLORS.for.bg,  borderColor: COLORS.for.border,  borderWidth: 1.5, borderRadius: 4 },
+      { label: 'stream',   data: [avgs[0].st,   avgs[1].st],   backgroundColor: COLORS.st.bg,   borderColor: COLORS.st.border,   borderWidth: 1.5, borderRadius: 4 },
+      { label: 'parallelStream', data: [avgs[0].par, avgs[1].par], backgroundColor: COLORS.par.bg, borderColor: COLORS.par.border, borderWidth: 1.5, borderRadius: 4 },
+    ]
+  },
+  options: gridOpts('μs'),
+});
+
+// --- 대규모 차트 (10,000 / 100,000) ---
+new Chart(document.getElementById('chartLarge'), {
+  type: 'bar',
+  data: {
+    labels: ['10,000개', '100,000개'],
+    datasets: [
+      { label: 'for 루프', data: [avgs[2].for,  avgs[3].for],  backgroundColor: COLORS.for.bg,  borderColor: COLORS.for.border,  borderWidth: 1.5, borderRadius: 4 },
+      { label: 'stream',   data: [avgs[2].st,   avgs[3].st],   backgroundColor: COLORS.st.bg,   borderColor: COLORS.st.border,   borderWidth: 1.5, borderRadius: 4 },
+      { label: 'parallelStream', data: [avgs[2].par, avgs[3].par], backgroundColor: COLORS.par.bg, borderColor: COLORS.par.border, borderWidth: 1.5, borderRadius: 4 },
+    ]
+  },
+  options: gridOpts('μs'),
+});
+
+// --- 추세 (로그 스케일) ---
+const trendOpts = {
+  ...gridOpts(),
+  plugins: {
+    ...gridOpts().plugins,
+    tooltip: {
+      backgroundColor: '#0f172a',
+      borderColor: '#334155',
+      borderWidth: 1,
+      callbacks: {
+        label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y.toFixed(2)} μs`
+      }
+    }
+  },
+  scales: {
+    x: { grid: { color: '#1e293b' }, ticks: { color: '#64748b' } },
+    y: {
+      type: 'logarithmic',
+      grid: { color: '#1e293b' },
+      ticks: {
+        color: '#64748b',
+        callback: v => v >= 1000 ? (v/1000).toFixed(0)+'k' : v
+      }
+    }
+  }
+};
+
+new Chart(document.getElementById('chartTrend'), {
+  type: 'line',
+  data: {
+    labels: ['100', '1,000', '10,000', '100,000'],
+    datasets: [
+      {
+        label: 'for 루프',
+        data: avgs.map(a => a.for),
+        borderColor: COLORS.for.border,
+        backgroundColor: 'rgba(96,165,250,0.12)',
+        borderWidth: 2.5,
+        pointRadius: 5,
+        pointHoverRadius: 7,
+        tension: 0.3,
+        fill: true,
+      },
+      {
+        label: 'stream',
+        data: avgs.map(a => a.st),
+        borderColor: COLORS.st.border,
+        backgroundColor: 'rgba(167,139,250,0.12)',
+        borderWidth: 2.5,
+        pointRadius: 5,
+        pointHoverRadius: 7,
+        tension: 0.3,
+        fill: true,
+      },
+      {
+        label: 'parallelStream',
+        data: avgs.map(a => a.par),
+        borderColor: COLORS.par.border,
+        backgroundColor: 'rgba(52,211,153,0.12)',
+        borderWidth: 2.5,
+        pointRadius: 5,
+        pointHoverRadius: 7,
+        tension: 0.3,
+        fill: true,
+      },
+    ]
+  },
+  options: trendOpts,
+});
+</script>
+</body>
+</html>
