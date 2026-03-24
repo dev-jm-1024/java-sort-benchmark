@@ -1,5 +1,7 @@
 # Java 정렬 벤치마크 — for / stream / IntStream / parallelStream
 
+**벤치마크 결과 시각화**: https://dev-jm-1024.github.io/java-sort-benchmark/
+
 Java에서 정렬 작업을 수행할 때 `for` 루프, `Stream<Integer>`, `IntStream`, `parallelStream` 네 가지 방식의 성능을 데이터 크기별로 비교한다.
 숫자 자체보다 **크기에 따른 상대적 추세**와 **박싱 오버헤드의 실체**를 파악하는 것이 목적이다.
 
